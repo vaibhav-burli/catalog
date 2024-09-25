@@ -1,0 +1,98 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "cJSON.h"  // Make sure to download and include cJSON library
+
+// Function to load the JSON file
+char* load_json(const char *filename) {
+    FILE *file = fopen(filename, "rb");
+    if (file == NULL) {
+        printf("Unable to open file %s\n", filename);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long length = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *data = (char*) malloc(length + 1);
+    fread(data, 1, length, file);
+    data[length] = '\0';  // Null-terminate the JSON string
+
+    fclose(file);
+    return data;
+}
+
+// Function to evaluate the polynomial
+double evaluate_polynomial(double *coefficients, int degree, double x) {
+    double result = 0;
+    for (int i = 0; i <= degree; i++) {
+        result += coefficients[i] * pow(x, degree - i);
+    }
+    return result;
+}
+
+int main() {
+    // Load JSON test cases from file
+    char *json_data = load_json("test_cases.json");
+    if (json_data == NULL) {
+        return 1;
+    }
+
+    // Parse JSON data
+    cJSON *json = cJSON_Parse(json_data);
+    if (json == NULL) {
+        printf("Error parsing JSON data\n");
+        free(json_data);
+        return 1;
+    }
+
+    // Get the test cases array
+    cJSON *test_cases = cJSON_GetObjectItem(json, "test_cases");
+    if (!cJSON_IsArray(test_cases)) {
+        printf("Invalid JSON format\n");
+        cJSON_Delete(json);
+        free(json_data);
+        return 1;
+    }
+
+    // Loop through each test case
+    int num_test_cases = cJSON_GetArraySize(test_cases);
+    for (int i = 0; i < num_test_cases; i++) {
+        cJSON *test_case = cJSON_GetArrayItem(test_cases, i);
+
+        // Get coefficients
+        cJSON *coefficients_json = cJSON_GetObjectItem(test_case, "coefficients");
+        int degree = cJSON_GetArraySize(coefficients_json) - 1;
+        double *coefficients = malloc((degree + 1) * sizeof(double));
+
+        for (int j = 0; j <= degree; j++) {
+            coefficients[j] = cJSON_GetArrayItem(coefficients_json, j)->valuedouble;
+        }
+
+        // Get x value
+        double x = cJSON_GetObjectItem(test_case, "x")->valuedouble;
+
+        // Get expected output
+        double expected_output = cJSON_GetObjectItem(test_case, "expected_output")->valuedouble;
+
+        // Evaluate polynomial
+        double result = evaluate_polynomial(coefficients, degree, x);
+
+        // Compare result with expected output
+        if (fabs(result - expected_output) < 1e-6) {
+            printf("Test case %d passed. Polynomial evaluated to %.2f\n", i + 1, result);
+        } else {
+            printf("Test case %d failed. Expected %.2f, but got %.2f\n", i + 1, expected_output, result);
+        }
+
+        // Free allocated memory
+        free(coefficients);
+    }
+
+    // Clean up
+    cJSON_Delete(json);
+    free(json_data);
+
+    return 0;
+}
